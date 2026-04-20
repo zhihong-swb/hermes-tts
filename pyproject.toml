@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hermes-tts"
+version = "0.1.0"
+description = "Text-to-Speech voice synthesis & delivery for Hermes Agent. Supports edge-tts, voice cloning, and Feishu voice messages."
+requires-python = ">=3.9"
+license = {text = "MIT"}
+dependencies = [
+    "edge-tts>=6.1.0",
+    "httpx>=0.24.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "pytest-asyncio"]
+
+[project.scripts]
+hermes-tts = "hermes_tts.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["hermes_tts*"]
