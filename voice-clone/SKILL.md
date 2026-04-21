@@ -34,28 +34,53 @@ metadata:
 
 ### 1. 从网络搜索公众人物音频
 
-搜索公众人物的演讲、采访等音频并下载：
+支持多个平台搜索和下载音频：
+
+| 来源 | `--source` 值 | 说明 | 适用场景 |
+|------|--------------|------|----------|
+| **B站** | `bilibili`（默认） | 通过 B站搜索 API 搜索视频 | 中文公众人物（演讲/采访/直播回放） |
+| **YouTube** | `youtube` | 通过 yt-dlp 搜索 YouTube | 国际公众人物、英文内容 |
+| **直接链接** | `url` | 提供任意视频/音频 URL 直接下载 | B站/YouTube/抖音/播客等所有 yt-dlp 支持的网站 |
 
 ```bash
-python scripts/search_audio.py --name "人物名字" --output-dir ./audio_samples
+python scripts/search_audio.py --name "人物名字" --source bilibili
 ```
 
 参数说明：
 | 参数 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
-| `--name` | 是 | - | 公众人物姓名 |
+| `--name` | 搜索模式必填 | - | 公众人物姓名 |
+| `--source` | 否 | bilibili | 来源平台：bilibili / youtube / url |
+| `--url` | URL模式必填 | - | 直接提供视频/音频链接 |
 | `--output-dir` | 否 | ./audio_samples | 音频保存目录 |
 | `--max-results` | 否 | 5 | 最大搜索结果数 |
 | `--keyword` | 否 | 演讲 | 附加搜索关键词（演讲/采访/朗读） |
 
 示例：
 ```bash
-# 搜索雷军的演讲音频
+# 从 B站搜索雷军的演讲音频（默认来源）
 python scripts/search_audio.py --name "雷军" --keyword "演讲"
 
-# 搜索 Elon Musk 的采访音频
-python scripts/search_audio.py --name "Elon Musk" --keyword "interview"
+# 从 B站搜索罗翔的讲课
+python scripts/search_audio.py --name "罗翔" --keyword "讲课"
+
+# 从 YouTube 搜索（国际人物）
+python scripts/search_audio.py --name "Elon Musk" --keyword "interview" --source youtube
+
+# 直接下载 B站视频音频
+python scripts/search_audio.py --url "https://www.bilibili.com/video/BVxxxxxx"
+
+# 直接下载 YouTube 视频音频
+python scripts/search_audio.py --url "https://www.youtube.com/watch?v=xxxxxx"
+
+# 直接下载抖音/其他平台
+python scripts/search_audio.py --url "https://www.douyin.com/video/xxxxxx"
 ```
+
+> **平台选择建议：**
+> - 中文人物 → 优先用 B站（`bilibili`），内容丰富，无需翻墙
+> - 国际人物 → 用 YouTube（`youtube`），需能访问 YouTube
+> - 已有链接 → 用 `--url` 直接下载，支持 B站/YouTube/抖音/微博/播客等
 
 ### 2. 处理音频（格式转换、裁剪、降噪）
 
@@ -132,14 +157,14 @@ python voice-tts/scripts/speak.py \
 
 ## 完整使用示例
 
-### 示例一：克隆公众人物声音
+### 示例一：克隆公众人物声音（B站搜索）
 
 ```bash
-# 步骤 1：搜索音频
+# 步骤 1：从 B站搜索音频
 python scripts/search_audio.py --name "雷军" --keyword "演讲"
 
 # 步骤 2：处理音频（截取清晰片段）
-python scripts/prepare_audio.py --input ./audio_samples/xxx.mp3 --start 5 --duration 25
+python scripts/prepare_audio.py --input ./audio_samples/xxx.wav --start 5 --duration 25
 
 # 步骤 3：创建模型
 python scripts/clone_voice.py --audio prepared.wav --name "雷军-演讲"
@@ -149,7 +174,19 @@ python scripts/clone_voice.py --audio prepared.wav --name "雷军-演讲"
 python voice-tts/scripts/speak.py --text "Are you OK" --target "ou_xxx" --engine fish --fish-model-id "xxxxxxxx"
 ```
 
-### 示例二：用户上传音频克隆
+### 示例二：从视频链接直接克隆
+
+```bash
+# 步骤 1：直接下载视频音频（支持 B站/YouTube/抖音等）
+python scripts/search_audio.py --url "https://www.bilibili.com/video/BVxxxxxx"
+
+# 步骤 2-4 同上
+python scripts/prepare_audio.py --input ./audio_samples/xxx.wav --duration 25 --denoise
+python scripts/clone_voice.py --audio prepared.wav --name "目标声音"
+python voice-tts/scripts/speak.py --text "克隆成功" --target "ou_xxx" --engine fish --fish-model-id "模型ID"
+```
+
+### 示例三：用户上传音频克隆
 
 ```bash
 # 步骤 1：处理上传的音频
@@ -167,10 +204,19 @@ python voice-tts/scripts/speak.py --text "这是我克隆的声音" --target "ou
 agent 在处理用户请求时，按以下方式调用：
 
 **用户说"帮我克隆雷军的声音"：**
-1. 调用 `search_audio.py --name "雷军"` 搜索音频
+1. 调用 `search_audio.py --name "雷军"` 从 B站搜索音频（中文人物默认用 B站）
 2. 调用 `prepare_audio.py` 处理音频
 3. 调用 `clone_voice.py` 创建模型
 4. 返回模型 ID 给用户
+
+**用户说"帮我克隆 Elon Musk 的声音"：**
+1. 调用 `search_audio.py --name "Elon Musk" --source youtube`（国际人物用 YouTube）
+2. 后续同上
+
+**用户给了一个 B站/YouTube 链接说"用这个视频里的声音克隆"：**
+1. 调用 `search_audio.py --url "用户给的链接"` 直接下载
+2. 调用 `prepare_audio.py` 处理
+3. 调用 `clone_voice.py` 创建模型
 
 **用户上传了一段音频说"用这个声音克隆"：**
 1. 调用 `prepare_audio.py --input 上传的文件路径` 处理
