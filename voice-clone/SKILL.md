@@ -42,12 +42,12 @@ metadata:
 
 ### 1. 从网络搜索公众人物音频
 
-默认通过公开搜索引擎查找视频，**无需登录、无需 cookie**。
+默认通过公开搜索引擎查找视频，**无需登录**。提供 cookie 后可直接使用平台搜索，成功率更高。
 
 | 搜索方式 | `--source` 值 | 说明 |
 |----------|--------------|------|
 | **网络搜索** | `web`（默认） | 通过搜索引擎查找 B站/抖音/YouTube 视频，无需登录 |
-| **B站** | `bilibili` | 通过 yt-dlp bilisearch 直接搜索（可能触发反爬，会自动回退到网络搜索） |
+| **B站** | `bilibili` | 通过 yt-dlp bilisearch 直接搜索（有 cookie 效果最好，无 cookie 会自动回退到网络搜索） |
 | **YouTube** | `youtube` | 通过 yt-dlp ytsearch 搜索 |
 | **直接链接** | `--url` | 提供任意视频/音频 URL 直接下载 |
 
@@ -61,14 +61,23 @@ python scripts/search_audio.py --name "人物名字"
 | `--name` | 搜索模式必填 | - | 公众人物姓名 |
 | `--source` | 否 | web | 搜索方式：web / bilibili / youtube |
 | `--url` | URL模式必填 | - | 直接提供视频/音频链接 |
+| `--cookies` | 否 | 自动检测 | cookie 文件路径（Netscape 格式），不指定时自动查找 `~/.hermes/cookies/` |
 | `--output-dir` | 否 | ./audio_samples | 音频保存目录 |
 | `--max-results` | 否 | 5 | 最大搜索结果数 |
 | `--keyword` | 否 | 演讲 | 附加搜索关键词（演讲/采访/朗读） |
+
+**Cookie 自动加载：** 脚本会自动检测 `~/.hermes/cookies/` 下的平台 cookie 文件（如 `bilibili.txt`、`youtube.txt`、`douyin.txt`），用于搜索和下载。详见 [setup.md](setup.md) 中的 Cookie 配置说明。
 
 示例：
 ```bash
 # 搜索雷军的演讲音频（默认网络搜索，无需登录）
 python scripts/search_audio.py --name "雷军" --keyword "演讲"
+
+# 使用 B站搜索（有 cookie 时直接搜索，无 cookie 自动回退到网络搜索）
+python scripts/search_audio.py --name "雷军" --source bilibili
+
+# 手动指定 cookie 文件
+python scripts/search_audio.py --name "雷军" --source bilibili --cookies ~/.hermes/cookies/bilibili.txt
 
 # 搜索罗翔的讲课
 python scripts/search_audio.py --name "罗翔" --keyword "讲课"
@@ -76,7 +85,7 @@ python scripts/search_audio.py --name "罗翔" --keyword "讲课"
 # 搜索国际人物
 python scripts/search_audio.py --name "Elon Musk" --keyword "interview"
 
-# 直接下载 B站/抖音/YouTube 视频音频
+# 直接下载 B站/抖音/YouTube 视频音频（有 cookie 自动加载）
 python scripts/search_audio.py --url "https://www.bilibili.com/video/BVxxxxxx"
 python scripts/search_audio.py --url "https://www.douyin.com/video/xxxxxx"
 python scripts/search_audio.py --url "https://www.youtube.com/watch?v=xxxxxx"
@@ -175,7 +184,7 @@ python voice-tts/scripts/speak.py \
 ### 示例一：克隆公众人物声音
 
 ```bash
-# 步骤 1：搜索音频（默认网络搜索，无需登录）
+# 步骤 1：搜索音频（有 cookie 自动使用，无 cookie 走网络搜索）
 python scripts/search_audio.py --name "雷军" --keyword "演讲"
 
 # 步骤 2：处理音频

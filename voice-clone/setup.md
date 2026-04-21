@@ -107,6 +107,75 @@ python scripts/clone_voice.py --list
 
 ---
 
+## Cookie 配置（可选，提升搜索成功率）
+
+B站、YouTube、抖音等平台对无登录访问有反爬限制，提供 cookie 后可直接使用平台搜索，成功率更高。
+
+### Cookie 存放位置
+
+```
+~/.hermes/cookies/
+├── bilibili.txt    # B站 cookie
+├── youtube.txt     # YouTube cookie
+└── douyin.txt      # 抖音 cookie
+```
+
+脚本会**自动检测**该目录下的 cookie 文件，无需额外参数。也可用 `--cookies` 参数手动指定：
+```bash
+python scripts/search_audio.py --name "雷军" --source bilibili --cookies /path/to/my_cookies.txt
+```
+
+### 如何导出 Cookie
+
+Cookie 文件必须是 **Netscape 格式**（yt-dlp 要求），推荐以下方式导出：
+
+#### 方式一：浏览器扩展导出（推荐）
+
+1. 安装浏览器扩展：
+   - Chrome: [Get cookies.txt LOCALLY](https://chromewebstore.google.com/detail/get-cookiestxt-locally/cclelndahbckbenkjhflpdbgdldlbecc)
+   - Firefox: [cookies.txt](https://addons.mozilla.org/en-US/firefox/addon/cookies-txt/)
+2. 登录对应网站（如 bilibili.com）
+3. 在该网站页面点击扩展图标，导出 cookies.txt
+4. 将导出的文件保存到 `~/.hermes/cookies/bilibili.txt`
+
+#### 方式二：yt-dlp 从浏览器自动读取
+
+如果服务器上有浏览器，可直接让 yt-dlp 读取：
+```bash
+# 从 Chrome 读取 cookie（需要在有桌面环境的机器上运行）
+yt-dlp --cookies-from-browser chrome "bilisearch5:雷军" --dump-json --no-download
+```
+> 注意：这种方式只适合本地有图形界面的机器，服务器通常没有浏览器。
+
+#### 方式三：手动构造
+
+Cookie 文件格式（每行一条，用 Tab 分隔）：
+```
+# Netscape HTTP Cookie File
+.bilibili.com	TRUE	/	FALSE	0	SESSDATA	你的SESSDATA值
+.bilibili.com	TRUE	/	FALSE	0	bili_jct	你的bili_jct值
+.bilibili.com	TRUE	/	FALSE	0	DedeUserID	你的UID
+```
+
+从浏览器开发者工具（F12 → Application → Cookies）复制对应值即可。
+
+### 各平台关键 Cookie
+
+| 平台 | 关键 Cookie | 获取方式 |
+|------|------------|----------|
+| **B站** | `SESSDATA`, `bili_jct`, `DedeUserID` | 登录 bilibili.com 后从浏览器获取 |
+| **YouTube** | 登录态 cookie（整体导出） | 登录 youtube.com 后整体导出 |
+| **抖音** | `sessionid`, `ttwid` | 登录 douyin.com 后从浏览器获取 |
+
+### Cookie 安全提示
+
+- Cookie 等同于你的登录凭据，**不要泄露给他人**
+- 服务器上的 cookie 文件建议设置权限：`chmod 600 ~/.hermes/cookies/*.txt`
+- Cookie 有过期时间，失效后需要重新导出
+- 如果不想配置 cookie，脚本会自动 fallback 到公开网络搜索（DuckDuckGo）
+
+---
+
 ## 音频质量建议
 
 克隆效果取决于参考音频质量：
