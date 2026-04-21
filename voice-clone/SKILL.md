@@ -38,9 +38,10 @@ metadata:
 
 | 来源 | `--source` 值 | 说明 | 适用场景 |
 |------|--------------|------|----------|
-| **B站** | `bilibili`（默认） | 通过 B站搜索 API 搜索视频 | 中文公众人物（演讲/采访/直播回放） |
-| **YouTube** | `youtube` | 通过 yt-dlp 搜索 YouTube | 国际公众人物、英文内容 |
-| **直接链接** | `url` | 提供任意视频/音频 URL 直接下载 | B站/YouTube/抖音/播客等所有 yt-dlp 支持的网站 |
+| **B站** | `bilibili`（默认） | 通过 yt-dlp bilisearch 搜索 | 中文公众人物（演讲/采访/直播回放） |
+| **抖音** | `douyin` | 通过抖音 Web API 搜索 | 短视频名人语音片段、口播内容 |
+| **YouTube** | `youtube` | 通过 yt-dlp ytsearch 搜索 | 国际公众人物、英文内容 |
+| **直接链接** | `--url` | 提供任意视频/音频 URL 直接下载 | B站/抖音/YouTube/播客等所有 yt-dlp 支持的网站 |
 
 ```bash
 python scripts/search_audio.py --name "人物名字" --source bilibili
@@ -50,7 +51,7 @@ python scripts/search_audio.py --name "人物名字" --source bilibili
 | 参数 | 必填 | 默认值 | 说明 |
 |------|------|--------|------|
 | `--name` | 搜索模式必填 | - | 公众人物姓名 |
-| `--source` | 否 | bilibili | 来源平台：bilibili / youtube / url |
+| `--source` | 否 | bilibili | 来源平台：bilibili / douyin / youtube / url |
 | `--url` | URL模式必填 | - | 直接提供视频/音频链接 |
 | `--output-dir` | 否 | ./audio_samples | 音频保存目录 |
 | `--max-results` | 否 | 5 | 最大搜索结果数 |
@@ -61,6 +62,9 @@ python scripts/search_audio.py --name "人物名字" --source bilibili
 # 从 B站搜索雷军的演讲音频（默认来源）
 python scripts/search_audio.py --name "雷军" --keyword "演讲"
 
+# 从抖音搜索（短视频、口播内容）
+python scripts/search_audio.py --name "雷军" --source douyin
+
 # 从 B站搜索罗翔的讲课
 python scripts/search_audio.py --name "罗翔" --keyword "讲课"
 
@@ -70,17 +74,19 @@ python scripts/search_audio.py --name "Elon Musk" --keyword "interview" --source
 # 直接下载 B站视频音频
 python scripts/search_audio.py --url "https://www.bilibili.com/video/BVxxxxxx"
 
+# 直接下载抖音视频音频
+python scripts/search_audio.py --url "https://www.douyin.com/video/xxxxxx"
+
 # 直接下载 YouTube 视频音频
 python scripts/search_audio.py --url "https://www.youtube.com/watch?v=xxxxxx"
-
-# 直接下载抖音/其他平台
-python scripts/search_audio.py --url "https://www.douyin.com/video/xxxxxx"
 ```
 
 > **平台选择建议：**
-> - 中文人物 → 优先用 B站（`bilibili`），内容丰富，无需翻墙
-> - 国际人物 → 用 YouTube（`youtube`），需能访问 YouTube
-> - 已有链接 → 用 `--url` 直接下载，支持 B站/YouTube/抖音/微博/播客等
+> - 中文人物 → 优先 B站（`bilibili`），长视频内容丰富
+> - 短视频/口播 → 抖音（`douyin`），名人短视频片段多
+> - 国际人物 → YouTube（`youtube`），需能访问 YouTube
+> - 已有链接 → 用 `--url` 直接下载，支持 B站/抖音/YouTube/微博/播客等
+> - 如果抖音搜索 API 受限，可在抖音手动搜索后用 `--url` 下载
 
 ### 2. 处理音频（格式转换、裁剪、降噪）
 
@@ -209,12 +215,16 @@ agent 在处理用户请求时，按以下方式调用：
 3. 调用 `clone_voice.py` 创建模型
 4. 返回模型 ID 给用户
 
+**用户说"从抖音找雷军的声音来克隆"：**
+1. 调用 `search_audio.py --name "雷军" --source douyin`（用户指定抖音）
+2. 后续同上
+
 **用户说"帮我克隆 Elon Musk 的声音"：**
 1. 调用 `search_audio.py --name "Elon Musk" --source youtube`（国际人物用 YouTube）
 2. 后续同上
 
-**用户给了一个 B站/YouTube 链接说"用这个视频里的声音克隆"：**
-1. 调用 `search_audio.py --url "用户给的链接"` 直接下载
+**用户给了一个 B站/抖音/YouTube 链接说"用这个视频里的声音克隆"：**
+1. 调用 `search_audio.py --url "用户给的链接"` 直接下载（自动识别平台）
 2. 调用 `prepare_audio.py` 处理
 3. 调用 `clone_voice.py` 创建模型
 
