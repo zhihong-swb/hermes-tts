@@ -142,12 +142,20 @@ python scripts/speak.py \
 ```
 hermes-tts/
 ├── README.md                # 本文档
-├── voice-tts/               # Agent Skill（复制到 skills 目录即用）
+├── voice-tts/               # TTS Skill（语音合成 + 飞书发送）
 │   ├── SKILL.md             # Skill 指令（agent 读取）
 │   ├── setup.md             # 详细安装配置教程
 │   └── scripts/
 │       ├── speak.py         # 语音合成 + 发送脚本
 │       ├── voices.py        # 列出可用音色
+│       └── requirements.txt
+├── voice-clone/             # 声音克隆 Skill（搜索/上传音频 → 创建模型）
+│   ├── SKILL.md             # Skill 指令（agent 读取）
+│   ├── setup.md             # 安装配置教程
+│   └── scripts/
+│       ├── search_audio.py  # 从网络搜索公众人物音频
+│       ├── prepare_audio.py # 音频预处理（格式转换/裁剪/降噪）
+│       ├── clone_voice.py   # Fish Audio 声音模型管理
 │       └── requirements.txt
 ├── hermes_tts/              # Python 包（可选，pip install 方式使用）
 │   ├── __init__.py
@@ -303,6 +311,29 @@ class HermesVoicePlugin:
 - 继承 `TTSEngine` - 添加新的 TTS 引擎
 - 继承 `PlatformSender` - 添加新的平台（Telegram、Discord、微信等）
 
+## 许可证
+
+MIT
+- 继承 `TTSEngine` - 添加新的 TTS 引擎
+- 继承 `PlatformSender` - 添加新的平台（Telegram、Discord、微信等）
+
+## 许可证
+
+MIT
+- 继承 `TTSEngine` - 添加新的 TTS 引擎
+- 继承 `PlatformSender` - 添加新的平台（Telegram、Discord、微信等）
+
+## 许可证
+
+MIT
+
+扩展方式：
+- 继承 `TTSEngine` - 添加新的 TTS 引擎
+- 继承 `PlatformSender` - 添加新的平台（Telegram、Discord、微信等）
+
+## 许可证
+
+MIT
 ## 许可证
 
 MIT
