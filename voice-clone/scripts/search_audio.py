@@ -2,22 +2,20 @@
 """
 从多个平台搜索公众人物音频并下载
 
-支持平台：
-  - bilibili (B站，默认) - 中文内容首选
-  - douyin   (抖音) - 短视频平台，适合找名人语音片段
-  - youtube  - 国际内容
-  - url      - 直接提供链接下载（支持 yt-dlp 所有平台）
+搜索方式：
+  - web（默认）  - 通过公开搜索引擎查找视频，无需登录/cookie
+  - bilibili     - 通过 yt-dlp bilisearch（可能需要 cookie）
+  - youtube      - 通过 yt-dlp ytsearch
+  - url          - 直接提供链接下载（支持 B站/抖音/YouTube 等）
 
 用法：
     python search_audio.py --name "雷军" --keyword "演讲"
-    python search_audio.py --name "雷军" --source douyin
-    python search_audio.py --name "Elon Musk" --source youtube --keyword "interview"
+    python search_audio.py --name "雷军" --source bilibili
     python search_audio.py --url "https://www.bilibili.com/video/BVxxxxxx"
     python search_audio.py --url "https://www.douyin.com/video/xxxxxx"
 """
 
 import argparse
-import http.cookiejar
 import json
 import logging
 import os
@@ -46,12 +44,82 @@ def check_deps():
         sys.exit(1)
 
 
+# ─── 公开网络搜索（默认方式，无需 cookie）──────────────────
+
+def _web_search_videos(query: str, max_results: int):
+    """通过 DuckDuckGo HTML 搜索视频链接（无需 API key）"""
+    search_query = urllib.parse.quote(f"{query} site:bilibili.com OR site:douyin.com OR site:youtube.com")
+    search_url = f"https://html.duckduckgo.com/html/?q={search_query}"
+
+    req = urllib.request.Request(search_url, headers={"User-Agent": UA})
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            html = resp.read().decode("utf-8", errors="ignore")
+    except Exception as e:
+        logger.error(f"网络搜索失败: {e}")
+        return []
+
+    # 从 DuckDuckGo HTML 结果中提取链接和标题
+    url_pattern = re.compile(r'class="result__a"\s+href="([^"]+)"')
+    title_pattern = re.compile(r'class="result__a"[^>]*>(.+?)</a>', re.DOTALL)
+
+    urls = url_pattern.findall(html)
+    titles = title_pattern.findall(html)
+
+    video_domains = ["bilibili.com/video/", "b23.tv/", "douyin.com/video/",
+                     "youtube.com/watch", "youtu.be/"]
+
+    entries = []
+    for i, url in enumerate(urls):
+        # DuckDuckGo 的 URL 可能有重定向包装
+        if "uddg=" in url:
+            match = re.search(r'uddg=([^&]+)', url)
+            if match:
+                url = urllib.parse.unquote(match.group(1))
+
+        if any(d in url for d in video_domains):
+            title = ""
+            if i < len(titles):
+                title = re.sub(r'<[^>]+>', '', titles[i]).strip()
+            entries.append({
+                "title": title or f"视频 {len(entries)+1}",
+                "url": url,
+                "webpage_url": url,
+            })
+            if len(entries) >= max_results:
+                break
+
+    return entries
+
+
+def search_and_download_web(name: str, keyword: str, output_dir: str, max_results: int):
+    """通过公开搜索引擎查找视频并下载音频"""
+    os.makedirs(output_dir, exist_ok=True)
+    query = f"{name} {keyword}"
+    logger.info(f"[网络搜索] {query} (最多 {max_results} 条)")
+
+    entries = _web_search_videos(query, max_results)
+
+    if not entries:
+        logger.warning("未搜索到视频结果")
+        logger.warning(f"替代方案: 手动找到视频链接后用 --url 下载")
+        return []
+
+    print(f"\n找到 {len(entries)} 条视频结果：\n")
+    for i, e in enumerate(entries):
+        domain = urllib.parse.urlparse(e["url"]).netloc
+        print(f"  [{i+1}] {e['title'][:60]} ({domain})")
+
+    return _download_entries(entries, output_dir)
+
+
+# ─── yt-dlp 平台搜索 ──────────────────────────────────────
+
 def _search_via_ytdlp(search_prefix: str, query: str, max_results: int):
-    """通用 yt-dlp 搜索，返回条目列表"""
-    search_query = f"{search_prefix}{max_results}:{query}"
+    """通用 yt-dlp 搜索"""
     cmd = [
         "yt-dlp",
-        search_query,
+        f"{search_prefix}{max_results}:{query}",
         "--dump-json",
         "--flat-playlist",
         "--no-download",
@@ -71,18 +139,16 @@ def _search_via_ytdlp(search_prefix: str, query: str, max_results: int):
     return entries
 
 
-# ─── B站搜索 ───────────────────────────────────────────────
-
 def search_and_download_bilibili(name: str, keyword: str, output_dir: str, max_results: int):
-    """从 B站搜索并下载音频（通过 yt-dlp bilisearch）"""
+    """从 B站搜索并下载音频"""
     os.makedirs(output_dir, exist_ok=True)
     query = f"{name} {keyword}"
-    logger.info(f"[B站] 搜索: {query} (最多 {max_results} 条)")
+    logger.info(f"[B站] 搜索: {query}")
 
     entries = _search_via_ytdlp("bilisearch", query, max_results)
     if not entries:
-        logger.warning("B站未找到相关视频")
-        return []
+        logger.warning("B站搜索失败（可能触发反爬），自动切换到网络搜索...")
+        return search_and_download_web(name, keyword, output_dir, max_results)
 
     print(f"\n找到 {len(entries)} 条B站结果：\n")
     for i, e in enumerate(entries):
@@ -95,111 +161,11 @@ def search_and_download_bilibili(name: str, keyword: str, output_dir: str, max_r
     return _download_entries(entries, output_dir, platform="bilibili")
 
 
-# ─── 抖音搜索 ──────────────────────────────────────────────
-
-def _search_douyin_api(query: str, max_results: int):
-    """通过抖音 Web API 搜索视频"""
-    # 先访问抖音首页获取必要的 cookie（ttwid 等）
-    cj = http.cookiejar.CookieJar()
-    opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cj))
-    opener.addheaders = [("User-Agent", UA)]
-
-    try:
-        opener.open("https://www.douyin.com/", timeout=10)
-    except Exception:
-        pass  # 即使首页访问失败，cookie 可能已经拿到
-
-    params = urllib.parse.urlencode({
-        "device_platform": "webapp",
-        "aid": "6383",
-        "channel": "channel_pc_web",
-        "search_channel": "aweme_video_web",
-        "keyword": query,
-        "search_source": "normal_search",
-        "query_correct_type": "1",
-        "is_filter_search": "0",
-        "from_group_id": "",
-        "offset": "0",
-        "count": str(max_results),
-        "cookie_enabled": "true",
-        "platform": "PC",
-        "pc_client_type": "1",
-    })
-    search_url = f"https://www.douyin.com/aweme/v1/web/search/item/?{params}"
-
-    req = urllib.request.Request(search_url, headers={
-        "User-Agent": UA,
-        "Referer": "https://www.douyin.com/",
-        "Accept": "application/json, text/plain, */*",
-    })
-
-    try:
-        resp = opener.open(req, timeout=15)
-        data = json.loads(resp.read().decode("utf-8"))
-    except Exception as e:
-        logger.debug(f"抖音 API 请求失败: {e}")
-        return []
-
-    if data.get("status_code") != 0:
-        logger.debug(f"抖音 API 返回状态: {data.get('status_code')}")
-        return []
-
-    results = data.get("data", [])
-    entries = []
-    for item in results:
-        aweme = item.get("aweme_info", {})
-        if not aweme:
-            continue
-        desc = aweme.get("desc", "")
-        author = aweme.get("author", {}).get("nickname", "")
-        aweme_id = aweme.get("aweme_id", "")
-        duration = aweme.get("duration", 0)
-        dur_str = f"{duration // 1000}秒" if duration else "未知时长"
-
-        entries.append({
-            "title": desc[:80] if desc else f"视频_{aweme_id}",
-            "url": f"https://www.douyin.com/video/{aweme_id}",
-            "webpage_url": f"https://www.douyin.com/video/{aweme_id}",
-            "duration": dur_str,
-            "author": author,
-        })
-
-    return entries[:max_results]
-
-
-def search_and_download_douyin(name: str, keyword: str, output_dir: str, max_results: int):
-    """从抖音搜索并下载音频"""
-    os.makedirs(output_dir, exist_ok=True)
-    query = f"{name} {keyword}"
-    logger.info(f"[抖音] 搜索: {query} (最多 {max_results} 条)")
-
-    entries = _search_douyin_api(query, max_results)
-
-    if not entries:
-        # API 搜索失败时，给出手动搜索的方式
-        search_url = f"https://www.douyin.com/search/{urllib.parse.quote(query)}"
-        logger.warning("抖音 API 搜索未返回结果（可能需要登录 cookie）")
-        logger.warning(f"替代方案 1: 手动在抖音搜索后复制链接:")
-        logger.warning(f"  浏览器打开: {search_url}")
-        logger.warning(f"  然后用: python search_audio.py --url \"抖音视频链接\"")
-        logger.warning(f"替代方案 2: 改用B站搜索:")
-        logger.warning(f"  python search_audio.py --name \"{name}\" --source bilibili")
-        return []
-
-    print(f"\n找到 {len(entries)} 条抖音结果：\n")
-    for i, e in enumerate(entries):
-        print(f"  [{i+1}] {e['title']} ({e.get('duration', '?')}) @{e.get('author', '')}")
-
-    return _download_entries(entries, output_dir, platform="douyin")
-
-
-# ─── YouTube 搜索 ──────────────────────────────────────────
-
 def search_and_download_youtube(name: str, keyword: str, output_dir: str, max_results: int):
     """从 YouTube 搜索并下载音频"""
     os.makedirs(output_dir, exist_ok=True)
     query = f"{name} {keyword}"
-    logger.info(f"[YouTube] 搜索: {query} (最多 {max_results} 条)")
+    logger.info(f"[YouTube] 搜索: {query}")
 
     entries = _search_via_ytdlp("ytsearch", query, max_results)
     if not entries:
@@ -224,12 +190,12 @@ def download_from_url(url: str, output_dir: str):
     logger.info(f"[URL] 直接下载: {url}")
 
     entries = [{"title": "audio", "url": url, "webpage_url": url}]
-    return _download_entries(entries, output_dir, platform="url")
+    return _download_entries(entries, output_dir)
 
 
 # ─── 通用下载 ──────────────────────────────────────────────
 
-def _get_download_url(entry: dict, platform: str) -> str:
+def _get_download_url(entry: dict, platform: str = "") -> str:
     """根据平台构造下载 URL"""
     webpage_url = entry.get("webpage_url", "")
     if webpage_url and webpage_url.startswith("http"):
@@ -238,15 +204,10 @@ def _get_download_url(entry: dict, platform: str) -> str:
     url = entry.get("url", "")
     video_id = entry.get("id", "")
 
-    if platform == "bilibili":
-        if video_id and not video_id.startswith("http"):
-            return f"https://www.bilibili.com/video/{video_id}"
-    elif platform == "youtube":
-        if video_id and not video_id.startswith("http"):
-            return f"https://www.youtube.com/watch?v={video_id}"
-    elif platform == "douyin":
-        if video_id and not video_id.startswith("http"):
-            return f"https://www.douyin.com/video/{video_id}"
+    if platform == "bilibili" and video_id and not video_id.startswith("http"):
+        return f"https://www.bilibili.com/video/{video_id}"
+    elif platform == "youtube" and video_id and not video_id.startswith("http"):
+        return f"https://www.youtube.com/watch?v={video_id}"
 
     return url if url.startswith("http") else ""
 
@@ -256,7 +217,9 @@ def _download_entries(entries: list, output_dir: str, platform: str = ""):
     downloaded = []
     for i, entry in enumerate(entries):
         title = entry.get("title", f"audio_{i+1}")
-        safe_title = re.sub(r'[\\/:*?"<>|]', '_', title).strip()[:50]
+        safe_title = re.sub(r'[\\/:*?"<>|\x00-\x1f]', '_', title).strip()[:50]
+        if not safe_title:
+            safe_title = f"audio_{i+1}"
         output_template = os.path.join(output_dir, f"{safe_title}.%(ext)s")
 
         url = _get_download_url(entry, platform)
@@ -264,13 +227,13 @@ def _download_entries(entries: list, output_dir: str, platform: str = ""):
             logger.warning(f"  [{i+1}] 无法获取下载地址，跳过")
             continue
 
-        logger.info(f"下载 [{i+1}/{len(entries)}]: {title}")
+        logger.info(f"下载 [{i+1}/{len(entries)}]: {title[:50]}")
         dl_cmd = [
             "yt-dlp",
             url,
-            "-x",                          # 仅提取音频
-            "--audio-format", "wav",        # 转为 wav
-            "--audio-quality", "0",         # 最高质量
+            "-x",
+            "--audio-format", "wav",
+            "--audio-quality", "0",
             "-o", output_template,
             "--no-playlist",
             "--max-filesize", "50M",
@@ -298,13 +261,13 @@ def _download_entries(entries: list, output_dir: str, platform: str = ""):
 def main():
     parser = argparse.ArgumentParser(
         description="从多个平台搜索公众人物音频并下载",
-        epilog="支持平台: bilibili(B站,默认), douyin(抖音), youtube, url(直接链接)"
+        epilog="支持: web(默认,无需登录), bilibili, youtube, url(直接链接)"
     )
     parser.add_argument("--name", help="公众人物姓名（搜索模式）")
     parser.add_argument("--keyword", default="演讲", help="附加搜索关键词（默认: 演讲）")
-    parser.add_argument("--source", default="bilibili",
-                        choices=["bilibili", "douyin", "youtube", "url"],
-                        help="音频来源平台（默认: bilibili）")
+    parser.add_argument("--source", default="web",
+                        choices=["web", "bilibili", "youtube", "url"],
+                        help="搜索方式（默认: web，通过搜索引擎，无需登录）")
     parser.add_argument("--url", help="直接提供视频/音频链接（支持 B站/抖音/YouTube 等）")
     parser.add_argument("--output-dir", default="./audio_samples", help="音频保存目录")
     parser.add_argument("--max-results", type=int, default=5, help="最大结果数（默认: 5）")
@@ -315,10 +278,10 @@ def main():
     if args.url:
         download_from_url(args.url, args.output_dir)
     elif args.name:
-        if args.source == "bilibili":
+        if args.source == "web":
+            search_and_download_web(args.name, args.keyword, args.output_dir, args.max_results)
+        elif args.source == "bilibili":
             search_and_download_bilibili(args.name, args.keyword, args.output_dir, args.max_results)
-        elif args.source == "douyin":
-            search_and_download_douyin(args.name, args.keyword, args.output_dir, args.max_results)
         elif args.source == "youtube":
             search_and_download_youtube(args.name, args.keyword, args.output_dir, args.max_results)
         else:

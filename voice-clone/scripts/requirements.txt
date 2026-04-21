@@ -1,2 +1,5 @@
 httpx>=0.24.0
 yt-dlp>=2024.0.0
+# 本地克隆（推荐，需要 GPU）:
+# pip install qwen-tts
+# pip install flash-attn --no-build-isolation  # 可选，减少显存占用
