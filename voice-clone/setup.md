@@ -5,16 +5,7 @@
 - Python >= 3.9
 - ffmpeg（音频处理）
 - yt-dlp（从网络下载音频）
-- GPU（可选，Qwen3-TTS 本地克隆需要）
-
-## 克隆引擎选择
-
-| 方案 | 条件 | 安装 | 特点 |
-|------|------|------|------|
-| **Qwen3-TTS（推荐）** | NVIDIA GPU | `pip install qwen-tts` | 本地推理，3秒音频克隆，免费无限制 |
-| **Fish Audio** | 无需GPU | 注册获取 API Key | 云端，免费额度每天1万字 |
-
-脚本会自动检测：有GPU + qwen-tts → 本地克隆，否则 → Fish Audio 云端。
+- NVIDIA GPU 或 Apple Silicon（Qwen3-TTS 本地克隆）
 
 ## 安装步骤
 
@@ -34,17 +25,17 @@ apt install -y ffmpeg
 ### 2. 安装 Python 依赖
 
 ```bash
-pip install yt-dlp httpx
+pip install yt-dlp
 ```
 
 > Hermes Agent 用户：
 > ```bash
-> /home/admin/.hermes/hermes-agent/venv/bin/python3 -m pip install yt-dlp httpx
+> /home/admin/.hermes/hermes-agent/venv/bin/python3 -m pip install yt-dlp
 > ```
 
-### 3. 安装 Qwen3-TTS（推荐，需要 GPU）
+### 3. 安装 Qwen3-TTS
 
-如果服务器有 NVIDIA GPU，安装 Qwen3-TTS 实现本地克隆：
+#### Linux 服务器（NVIDIA GPU）
 
 ```bash
 pip install -U qwen-tts
@@ -52,6 +43,22 @@ pip install -U qwen-tts
 # 可选：安装 FlashAttention-2 减少显存占用
 pip install -U flash-attn --no-build-isolation
 ```
+
+#### macOS（Apple Silicon M1/M2/M3/M4）
+
+```bash
+# 安装 PyTorch（MPS 支持）
+pip install -U torch torchvision torchaudio
+
+# 安装 qwen-tts
+pip install -U qwen-tts
+
+# 验证 MPS 可用
+python -c "import torch; print('MPS可用' if torch.backends.mps.is_available() else 'MPS不可用')"
+```
+
+> Mac 上推荐使用 0.6B 模型，1.7B 在 Mac 上会比较吃力。
+> MPS 部分算子可能需要 CPU fallback，脚本已自动设置 `PYTORCH_ENABLE_MPS_FALLBACK=1`。
 
 > 模型在首次运行时自动下载（0.6B 模型约 1.2GB）。
 > 也可手动下载：
@@ -64,20 +71,7 @@ pip install -U flash-attn --no-build-isolation
 > huggingface-cli download Qwen/Qwen3-TTS-0.6B-CustomVoice
 > ```
 
-### 4. 配置 Fish Audio（备选/无GPU时使用）
-
-访问 https://fish.audio 注册账号，获取 API Key（免费额度：每天 10,000 字）。
-
-```bash
-export FISH_AUDIO_API_KEY="你的api_key"
-```
-
-> Hermes Agent 用户可写入 `~/.hermes/.env`：
-> ```bash
-> echo 'FISH_AUDIO_API_KEY=你的api_key' >> ~/.hermes/.env
-> ```
-
-### 5. 复制 skill 到 agent 的 skills 目录
+### 4. 复制 skill 到 agent 的 skills 目录
 
 ```bash
 git clone https://github.com/zhihong-swb/hermes-tts.git
@@ -92,16 +86,13 @@ cp -r hermes-tts/voice-clone ~/.claude/skills/
 cp -r hermes-tts/voice-clone ~/.qoder/skills/
 ```
 
-### 6. 验证
+### 5. 验证
 
 ```bash
-# 测试搜索（通过公开搜索引擎，无需登录）
+# 测试搜索
 python scripts/search_audio.py --name "雷军" --max-results 2
 
-# 测试音频处理
-python scripts/prepare_audio.py --input test.mp3 --duration 10
-
-# 测试克隆引擎检测
+# 测试模型列表
 python scripts/clone_voice.py --list
 ```
 
@@ -182,7 +173,7 @@ Cookie 文件格式（每行一条，用 Tab 分隔）：
 
 | 项目 | 建议 |
 |------|------|
-| 时长 | Qwen3-TTS 最少3秒，推荐10-30秒 |
+| 时长 | 最少3秒，推荐10-30秒 |
 | 格式 | WAV 最佳，MP3 也可 |
 | 采样率 | 16kHz 以上 |
 | 内容 | 纯人声，无背景音乐/噪声 |
@@ -196,12 +187,15 @@ Cookie 文件格式（每行一条，用 Tab 分隔）：
 - 尝试不同关键词：`--keyword "采访"` 或 `--keyword "TED"`
 - 也可直接提供视频链接：`--url "https://..."`
 
-### Q: 如何检查服务器是否有 GPU
+### Q: 如何检查是否支持本地克隆
 
 ```bash
+# Linux 服务器：检查 NVIDIA GPU
 nvidia-smi
+
+# Mac：检查 MPS（Apple Silicon）
+python -c "import torch; print('MPS可用' if torch.backends.mps.is_available() else 'MPS不可用')"
 ```
-如果有输出说明有 GPU，可以使用 Qwen3-TTS 本地克隆。
 
 ### Q: Qwen3-TTS 下载太慢
 
@@ -216,10 +210,3 @@ modelscope download Qwen/Qwen3-TTS-0.6B-CustomVoice
 - 确保音频是纯人声，用 `--denoise` 降噪
 - 多提供几段音频样本（`--audio a.wav b.wav c.wav`）
 - 裁剪掉开头结尾的杂音
-- Qwen3-TTS 效果一般优于 Fish Audio 免费版
-
-### Q: Fish Audio 免费额度用完了
-
-- 免费额度每天重置（10,000 字/天）
-- 模型创建不计入额度，仅合成时消耗
-- 推荐切换到 Qwen3-TTS 本地克隆（无限制）

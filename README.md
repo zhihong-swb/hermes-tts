@@ -61,7 +61,7 @@ cp -r hermes-tts/voice-clone ~/.qoder/skills/
 
 > **声音克隆额外依赖**：`pip install yt-dlp httpx`，详见 `voice-clone/setup.md`
 
-**4. 配置飞书凭证（环境变量）**
+**4. 配置飞书凭证（环境变量，已配置可忽略）**
 
 ```bash
 export FEISHU_APP_ID="你的飞书app_id"
