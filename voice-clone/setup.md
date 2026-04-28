@@ -38,6 +38,10 @@ pip install yt-dlp
 #### Linux 服务器（NVIDIA GPU）
 
 ```bash
+# 国内网络（推荐，使用阿里云镜像）
+pip install -U qwen-tts -i https://mirrors.aliyun.com/pypi/simple/
+
+# 海外网络
 pip install -U qwen-tts
 
 # 可选：安装 FlashAttention-2 减少显存占用
@@ -47,10 +51,12 @@ pip install -U flash-attn --no-build-isolation
 #### macOS（Apple Silicon M1/M2/M3/M4）
 
 ```bash
-# 安装 PyTorch（MPS 支持）
-pip install -U torch torchvision torchaudio
+# 国内网络（推荐，使用阿里云镜像）
+pip install -U torch torchvision torchaudio -i https://mirrors.aliyun.com/pypi/simple/
+pip install -U qwen-tts -i https://mirrors.aliyun.com/pypi/simple/
 
-# 安装 qwen-tts
+# 海外网络
+pip install -U torch torchvision torchaudio
 pip install -U qwen-tts
 
 # 验证 MPS 可用
@@ -60,15 +66,24 @@ python -c "import torch; print('MPS可用' if torch.backends.mps.is_available() 
 > Mac 上推荐使用 0.6B 模型，1.7B 在 Mac 上会比较吃力。
 > MPS 部分算子可能需要 CPU fallback，脚本已自动设置 `PYTORCH_ENABLE_MPS_FALLBACK=1`。
 
-> 模型在首次运行时自动下载（0.6B 模型约 1.2GB）。
-> 也可手动下载：
+#### 模型下载
+
+模型在首次运行时自动从 HuggingFace 下载（0.6B 模型约 1.2GB），**国内网络可能无法访问 HuggingFace**。
+
+**国内网络：使用 ModelScope 预下载（推荐）**
+```bash
+pip install modelscope -i https://mirrors.aliyun.com/pypi/simple/
+modelscope download Qwen/Qwen3-TTS-0.6B-CustomVoice
+```
+
+**海外网络：从 HuggingFace 下载**
+```bash
+huggingface-cli download Qwen/Qwen3-TTS-0.6B-CustomVoice
+```
+
+> 也可设置 pip 全局国内镜像，避免每次加 `-i` 参数：
 > ```bash
-> # 从 ModelScope（国内快）
-> pip install modelscope
-> modelscope download Qwen/Qwen3-TTS-0.6B-CustomVoice
->
-> # 或从 HuggingFace
-> huggingface-cli download Qwen/Qwen3-TTS-0.6B-CustomVoice
+> pip config set global.index-url https://mirrors.aliyun.com/pypi/simple/
 > ```
 
 ### 4. 复制 skill 到 agent 的 skills 目录
@@ -197,11 +212,12 @@ nvidia-smi
 python -c "import torch; print('MPS可用' if torch.backends.mps.is_available() else 'MPS不可用')"
 ```
 
-### Q: Qwen3-TTS 下载太慢
+### Q: Qwen3-TTS 下载太慢 / 国内无法访问
 
-使用 ModelScope 国内镜像：
+pip 包使用阿里云镜像，模型使用 ModelScope 下载：
 ```bash
-pip install modelscope
+pip install -U qwen-tts -i https://mirrors.aliyun.com/pypi/simple/
+pip install modelscope -i https://mirrors.aliyun.com/pypi/simple/
 modelscope download Qwen/Qwen3-TTS-0.6B-CustomVoice
 ```
 
